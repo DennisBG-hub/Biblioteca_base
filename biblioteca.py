@@ -9,6 +9,7 @@ RUTA_BD.parent.mkdir(parents=True, exist_ok=True)
 # Variables globales para mantener compatibilidad absoluta con tests antiguos
 libros = []
 bd = libros
+usuarios = []
 modo = "normal"
 ultimo_error = ""
 
@@ -42,13 +43,24 @@ def inicializar_tablas():
     with sqlite3.connect(RUTA_BD) as conexion:
         conexion.execute("PRAGMA foreign_keys = ON")
 
-        # Tabla de Libros (Fase 4 - REQUERIDA AHORA)
+        # Tabla de Libros (Fase 4)
         conexion.execute("""
             CREATE TABLE IF NOT EXISTS libros (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 titulo TEXT NOT NULL,
                 autor TEXT NOT NULL,
                 disponible INTEGER DEFAULT 1
+            )
+        """)
+
+        # Tabla de Usuarios (Fase 5) - ¡ASEGÚRATE DE QUE ESTO ESTÉ AQUÍ!
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                apellidos TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                habilitado INTEGER DEFAULT 1
             )
         """)
 
