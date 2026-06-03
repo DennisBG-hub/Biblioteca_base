@@ -64,6 +64,18 @@ def inicializar_tablas():
             )
         """)
 
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS prestamos (
+                id_prestamo INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_libro INTEGER NOT NULL,
+                id_usuario INTEGER NOT NULL,
+                fecha_prestamo TEXT NOT NULL,
+                fecha_devolucion TEXT,
+                FOREIGN KEY (id_libro) REFERENCES libros (id),
+                FOREIGN KEY (id_usuario) REFERENCES usuarios (id)
+            )
+        """)
+
         conexion.commit()
 
 
@@ -250,3 +262,31 @@ def buscar_usuario_por_email(email: str) -> dict | None:
     if fila:
         return {"id": fila[0], "nombre": fila[1], "apellidos": fila[2], "email": fila[3], "habilitado": bool(fila[4])}
     return None
+
+
+
+def prestar_libro(id_libro: int, id_usuario: int, fecha: str):
+    """Registra un préstamo en la BD y cambia el libro a NO disponible (disponible = 0)."""
+    with sqlite3.connect(RUTA_BD) as conexion:
+        # 1. Comprobar si el libro existe y si está disponible
+        cursor = conexion.execute("SELECT disponible FROM libros WHERE id = ?", (id_libro,))
+        libro = cursor.fetchone()
+
+        if not libro:
+            print("El libro no existe.")
+            return False
+
+        if libro[0] == 0:
+            print("El libro ya está prestado.")
+            return False
+
+        # 2. Registrar el nuevo préstamo
+        conexion.execute("""
+            INSERT INTO prestamos (id_libro, id_usuario, fecha_prestamo)
+            VALUES (?, ?, ?)
+        """, (id_libro, id_usuario, fecha))
+
+        # 3. Cambiar el estado del libro a prestado (0)
+        conexion.execute("UPDATE libros SET disponible = 0 WHERE id = ?", (id_libro,))
+        conexion.commit()
+        return True
