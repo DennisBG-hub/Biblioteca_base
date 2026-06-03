@@ -1,6 +1,6 @@
 libros = []
 bd = libros
-modo = "normal"
+modo = "usuarios"
 ultimo_error = ""
 
 
