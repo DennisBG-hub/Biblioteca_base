@@ -42,3 +42,15 @@ def devolver_libro(id_libro, fecha_devolucion):
         conexion.execute("INSERT INTO logs (accion) VALUES (?)", (mensaje,))
         conexion.commit()
     return True
+
+
+def operar(accion, datos):
+    if accion == "prestar":
+        return prestar_libro(datos['id_libro'], datos['id_usuario'], datos['fecha'])
+
+    elif accion == "devolver":
+        # Nota: Aquí pasamos los datos necesarios para la devolución
+        return devolver_libro(datos['id_libro'], datos['fecha_devolucion'])
+
+    else:
+        raise ValueError(f"Acción '{accion}' no reconocida")
