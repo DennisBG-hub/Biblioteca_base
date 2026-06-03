@@ -9,7 +9,7 @@ RUTA_BD.parent.mkdir(parents=True, exist_ok=True)
 # Variables globales para mantener compatibilidad absoluta con tests antiguos
 libros = []
 bd = libros
-modo = "normal"
+modo = "libros"
 ultimo_error = ""
 
 
