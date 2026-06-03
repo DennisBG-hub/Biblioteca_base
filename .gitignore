@@ -27,3 +27,6 @@ Thumbs.db
 *.db-journal
 *.db-shm
 *.db-wal
+
+bd/biblioteca.db
+*.db

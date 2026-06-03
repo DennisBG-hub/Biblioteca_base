@@ -1,137 +1,240 @@
+import sqlite3
+from pathlib import Path
+
+
+                #CONFIGURACIÓN INICIAL Y RUTAS"""
+RUTA_BD = Path(__file__).resolve().parent / "bd" / "biblioteca.db"
+RUTA_BD.parent.mkdir(parents=True, exist_ok=True)
+
+# Variables globales para mantener compatibilidad absoluta con tests antiguos
 libros = []
 bd = libros
 modo = "normal"
 ultimo_error = ""
 
 
-def _cosa(a, b="", c=0):
-    if c == 1:
-        print(a + b)
-    elif c == 2:
-        print(a)
-    else:
-        print(str(a))
+                #ENTIDADES / CLASES
+
+class Libro:
+    """Clase que representa la entidad de un Libro (Fase 4)."""
+    def __init__(self, titulo: str, autor: str, disponible: bool = True, id_libro: int = None):
+        self.id = id_libro
+        self.titulo = titulo
+        self.autor = autor
+        self.disponible = disponible
+
+class Usuario:
+    """Clase que representa la entidad de un Usuario (Fase 5)."""
+    def __init__(self, nombre: str, apellidos: str, email: str, habilitado: bool = True, id_usuario: int = None):
+        self.id = id_usuario
+        self.nombre = nombre
+        self.apellidos = apellidos
+        self.email = email
+        self.habilitado = habilitado
 
 
-def _mover(que, valor):
-    if que == "p":
-        valor["disponible"] = False
-        _cosa("Se presto el libro", "", 2)
-        return "Libro prestado"
-    if que == "d":
-        valor["disponible"] = True
-        _cosa("Se devolvio el libro", "", 2)
-        return "Libro devuelto"
-    return "Nada"
+                #INICIALIZACIÓN DE TABLAS SQLITE
 
 
-def agregar_libro(titulo, autor):
+
+def inicializar_tablas():
+    """Crea las tablas necesarias si no existen en la base de datos."""
+    with sqlite3.connect(RUTA_BD) as conexion:
+        conexion.execute("PRAGMA foreign_keys = ON")
+
+        # Tabla de Libros (Fase 4 - REQUERIDA AHORA)
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS libros (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                autor TEXT NOT NULL,
+                disponible INTEGER DEFAULT 1
+            )
+        """)
+
+        conexion.commit()
+
+
+# Forzar la creación de las tablas al importar el módulo
+inicializar_tablas()
+
+
+                #MÉTODOS CRUD - LIBROS
+
+
+def agregar_libro(titulo: str, autor: str) -> None:
+    """Añade un libro a la base de datos de manera persistente."""
     global ultimo_error
-    datos = []
-    datos.append(titulo)
-    datos.append(autor)
-    tmp = {}
-
-    for i in range(0, len(datos)):
-        if i == 0:
-            tmp["titulo"] = datos[i]
-        else:
-            if i == 1:
-                tmp["autor"] = datos[i]
-
-    tmp["disponible"] = not False
-    if modo == "normal" or modo != "normal":
-        bd.append(tmp)
+    try:
+        with sqlite3.connect(RUTA_BD) as conexion:
+            conexion.execute(
+                "INSERT INTO libros (titulo, autor, disponible) VALUES (?, ?, 1)",
+                (titulo, autor)
+            )
+            conexion.commit()
         ultimo_error = ""
-    else:
-        ultimo_error = "modo desconocido"
+    except sqlite3.Error as e:
+        ultimo_error = f"Error de BD: {str(e)}"
 
-    _cosa("Libro agregado: ", titulo, 1)
-
-
-def buscar_libro(titulo):
-    pos = 0
-    encontrado = None
-    seguir = True
-    while seguir:
-        if pos >= len(bd):
-            seguir = False
-        else:
-            x = bd[pos]
-            if ("titulo" in x) == True:
-                if x.get("titulo") == titulo:
-                    encontrado = x
-                    seguir = False
-                else:
-                    pos = pos + 1
-            else:
-                pos = pos + 1
-    return encontrado
-
-
-def prestar_libro(titulo):
+def remove_libro(id_libro: int) -> bool:
+    """Elimina un libro del catálogo por su identificador ID."""
     global ultimo_error
-    r = "Libro no encontrado"
-    i = 0
-    while i < len(libros):
-        x = libros[i]
-        if x["titulo"] == titulo:
-            if x["disponible"] == True:
-                r = _mover("p", x)
+    try:
+        with sqlite3.connect(RUTA_BD) as conexion:
+            cursor = conexion.execute("DELETE FROM libros WHERE id = ?", (id_libro,))
+            conexion.commit()
+            if cursor.rowcount > 0:
                 ultimo_error = ""
-                i = len(libros) + 100
+                return True
             else:
-                _cosa("El libro no esta disponible", "", 2)
-                r = "Libro no disponible"
-                ultimo_error = r
-                i = len(libros) + 100
-        else:
-            i = i + 1
+                ultimo_error = "Libro no encontrado"
+                return False
+    except sqlite3.Error as e:
+        ultimo_error = f"Error de BD: {str(e)}"
+        return False
 
-    if r == "Libro no encontrado":
-        _cosa("No se encontro el libro", "", 2)
-        ultimo_error = r
+def buscar_libro(titulo: str) -> dict | None:
+    """Busca un libro por su título exacto (Retorna un diccionario)."""
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute(
+            "SELECT id, titulo, autor, disponible FROM libros WHERE titulo = ?",
+            (titulo,)
+        )
+        fila = cursor.fetchone()
+    if fila:
+        return {
+            "id": fila[0],
+            "titulo": fila[1],
+            "autor": fila[2],
+            "disponible": bool(fila[3])
+        }
+    return None
 
-    return r
+def mostrar_libros() -> None:
+    """Muestra la lista completa de libros en consola."""
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("SELECT titulo, autor, disponible FROM libros")
+        filas = cursor.fetchall()
+    if not filas:
+        print("No hay libros")
+        return
+    for fila in filas:
+        estado = "Disponible" if fila[2] == 1 else "Prestado"
+        print(f"{fila[0]} - {fila[1]} - {estado}")
 
+                #GESTIÓN DE ACCIONES (PRÉSTAMOS)
 
-def devolver_libro(titulo):
+def prestar_libro(titulo: str) -> str:
+    """Cambia el estado del libro a prestado en la base de datos."""
     global ultimo_error
-    data = buscar_libro(titulo)
-    if data is None:
-        _cosa("No se encontro el libro", "", 2)
+    libro = buscar_libro(titulo)
+    if not libro:
         ultimo_error = "Libro no encontrado"
         return "Libro no encontrado"
-    else:
-        if data["disponible"] == False:
-            ultimo_error = ""
-            return _mover("d", data)
-        else:
-            if data["disponible"] != False:
-                _cosa("El libro ya estaba disponible", "", 2)
-                ultimo_error = "Libro ya disponible"
-                return "Libro ya disponible"
+    if not libro["disponible"]:
+        ultimo_error = "Libro no disponible"
+        return "Libro no disponible"
+    with sqlite3.connect(RUTA_BD) as conexion:
+        conexion.execute("UPDATE libros SET disponible = 0 WHERE id = ?", (libro["id"],))
+        conexion.commit()
+    ultimo_error = ""
+    return "Libro prestado"
+
+def devolver_libro(titulo: str) -> str:
+    """Cambia el estado del libro a disponible en la base de datos."""
+    global ultimo_error
+    libro = buscar_libro(titulo)
+    if not libro:
+        ultimo_error = "Libro no encontrado"
+        return "Libro no encontrado"
+    if libro["disponible"]:
+        ultimo_error = "Libro ya disponible"
+        return "Libro ya disponible"
+    with sqlite3.connect(RUTA_BD) as conexion:
+        conexion.execute("UPDATE libros SET disponible = 1 WHERE id = ?", (libro["id"],))
+        conexion.commit()
+    ultimo_error = ""
+    return "Libro devuelto"
+
+            #BÚSQUEDAS AVANZADAS REQUERIDAS (FASE 4)
 
 
-def mostrar_libros():
-    contador = 0
-    if len(bd) == 0:
-        _cosa("No hay libros", "", 2)
-    else:
-        while contador < len(bd):
-            x = bd[contador]
-            estado = ""
-            if x["disponible"] == True:
-                estado = estado + "Disponible"
-            else:
-                if x["disponible"] == False:
-                    estado = estado + "Prestado"
-            salida = ""
-            partes = [x["titulo"], x["autor"], estado]
-            for p in partes:
-                if salida == "":
-                    salida = p
-                else:
-                    salida = salida + " - " + p
-            print(salida)
-            contador = contador + 1
+def buscar_por_autor(autor: str) -> list:
+    """Busca libros usando coincidencia parcial por nombre de autor (LIKE)."""
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("SELECT id, titulo, autor, disponible FROM libros WHERE autor LIKE ?", (f"%{autor}%",))
+        filas = cursor.fetchall()
+    return [{"id": f[0], "titulo": f[1], "autor": f[2], "disponible": bool(f[3])} for f in filas]
+
+def buscar_por_disponibilidad(disponible: bool) -> list:
+    """Filtra los libros según su estado de disponibilidad actual."""
+    val = 1 if disponible else 0
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("SELECT id, titulo, autor, disponible FROM libros WHERE disponible = ?", (val,))
+        filas = cursor.fetchall()
+    return [{"id": f[0], "titulo": f[1], "autor": f[2], "disponible": bool(f[3])} for f in filas]
+
+
+
+        #MÉTODOS CRUD - USUARIOS (PARA FASE 5)
+
+
+def add_usuario(usuario: Usuario) -> None:
+    global ultimo_error
+    try:
+        with sqlite3.connect(RUTA_BD) as conexion:
+            conexion.execute(
+                "INSERT INTO usuarios (nombre, apellidos, email, habilitado) VALUES (?, ?, ?, ?)",
+                (usuario.nombre, usuario.apellidos, usuario.email, 1 if usuario.habilitado else 0)
+            )
+            conexion.commit()
+        ultimo_error = ""
+    except sqlite3.IntegrityError:
+        ultimo_error = "El email ya se encuentra registrado"
+    except sqlite3.Error as e:
+        ultimo_error = f"Error de BD: {str(e)}"
+
+def remove_usuario(id_usuario: int) -> bool:
+    global ultimo_error
+    try:
+        with sqlite3.connect(RUTA_BD) as conexion:
+            cursor = conexion.execute("DELETE FROM usuarios WHERE id = ?", (id_usuario,))
+            conexion.commit()
+            return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        ultimo_error = f"Error de BD: {str(e)}"
+        return False
+
+def get_usuario(id_usuario: int) -> dict | None:
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("SELECT id, nombre, apellidos, email, habilitado FROM usuarios WHERE id = ?", (id_usuario,))
+        fila = cursor.fetchone()
+    if fila:
+        return {"id": fila[0], "nombre": fila[1], "apellidos": fila[2], "email": fila[3], "habilitado": bool(fila[4])}
+    return None
+
+def list_usuarios() -> list:
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("SELECT id, nombre, apellidos, email, habilitado FROM usuarios")
+        filas = cursor.fetchall()
+    return [{"id": f[0], "nombre": f[1], "apellidos": f[2], "email": f[3], "habilitado": bool(f[4])} for f in filas]
+
+def habilita_usuario(id_usuario: int) -> bool:
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("UPDATE usuarios SET habilitado = 1 WHERE id = ?", (id_usuario,))
+        conexion.commit()
+    return cursor.rowcount > 0
+
+def deshabilita_usuario(id_usuario: int) -> bool:
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("UPDATE usuarios SET habilitado = 0 WHERE id = ?", (id_usuario,))
+        conexion.commit()
+    return cursor.rowcount > 0
+
+def buscar_usuario_por_email(email: str) -> dict | None:
+    with sqlite3.connect(RUTA_BD) as conexion:
+        cursor = conexion.execute("SELECT id, nombre, apellidos, email, habilitado FROM usuarios WHERE email = ?", (email,))
+        fila = cursor.fetchone()
+    if fila:
+        return {"id": fila[0], "nombre": fila[1], "apellidos": fila[2], "email": fila[3], "habilitado": bool(fila[4])}
+    return None
