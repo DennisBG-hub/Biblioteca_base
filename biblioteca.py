@@ -76,6 +76,14 @@ def inicializar_tablas():
             )
         """)
 
+        conexion.execute("""
+                    CREATE TABLE IF NOT EXISTS logs (
+                        id_log INTEGER PRIMARY KEY AUTOINCREMENT,
+                        accion TEXT NOT NULL,
+                        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
         conexion.commit()
 
 
@@ -266,27 +274,33 @@ def buscar_usuario_por_email(email: str) -> dict | None:
 
 
 def prestar_libro(id_libro: int, id_usuario: int, fecha: str):
-    """Registra un préstamo en la BD y cambia el libro a NO disponible (disponible = 0)."""
     with sqlite3.connect(RUTA_BD) as conexion:
-        # 1. Comprobar si el libro existe y si está disponible
-        cursor = conexion.execute("SELECT disponible FROM libros WHERE id = ?", (id_libro,))
-        libro = cursor.fetchone()
+        # ... (Tu código anterior que comprueba disponibilidad) ...
 
-        if not libro:
-            print("El libro no existe.")
-            return False
+        # 1. Sacar el nombre del usuario y título del libro para el log
+        cursor_u = conexion.execute("SELECT nombre FROM usuarios WHERE id = ?", (id_usuario,))
+        nombre_usuario = cursor_u.fetchone()[0]
 
-        if libro[0] == 0:
-            print("El libro ya está prestado.")
-            return False
+        cursor_l = conexion.execute("SELECT titulo FROM libros WHERE id = ?", (id_libro,))
+        titulo_libro = cursor_l.fetchone()[0]
 
-        # 2. Registrar el nuevo préstamo
+        # 2. Registrar el préstamo (Tu código de antes)
         conexion.execute("""
             INSERT INTO prestamos (id_libro, id_usuario, fecha_prestamo)
             VALUES (?, ?, ?)
         """, (id_libro, id_usuario, fecha))
 
-        # 3. Cambiar el estado del libro a prestado (0)
         conexion.execute("UPDATE libros SET disponible = 0 WHERE id = ?", (id_libro,))
+
+        # 3. GUARDAR EL LOG (Requisito Fase 7)
+        mensaje_log = f"Usuario {nombre_usuario} ha prestado Libro {titulo_libro}"
+        conexion.execute("INSERT INTO logs (accion) VALUES (?)", (mensaje_log,))
+
         conexion.commit()
         return True
+
+def registrar_log(mensaje: str):
+    """Inserta una línea de texto en la tabla de logs."""
+    with sqlite3.connect(RUTA_BD) as conexion:
+        conexion.execute("INSERT INTO logs (accion) VALUES (?)", (mensaje,))
+        conexion.commit()

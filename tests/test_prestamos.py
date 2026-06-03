@@ -27,5 +27,15 @@ class TestPrestamos(unittest.TestCase):
             cursor = conexion.execute("SELECT disponible FROM libros WHERE id = 1")
             self.assertEqual(cursor.fetchone()[0], 0)
 
+
+    def test_log_prestamo(self):
+        """Verifica que al prestar se genera el texto de log correcto."""
+        biblioteca.prestar_libro(1, 1, "2026-06-03")
+
+        with sqlite3.connect(biblioteca.RUTA_BD) as conexion:
+            cursor = conexion.execute("SELECT accion FROM logs ORDER BY id_log DESC LIMIT 1")
+            log_guardado = cursor.fetchone()[0]
+            self.assertEqual(log_guardado, "Usuario Juan ha prestado Libro Libro de Prueba")
+
 if __name__ == '__main__':
     unittest.main()
